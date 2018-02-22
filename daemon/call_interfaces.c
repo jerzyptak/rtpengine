@@ -629,7 +629,12 @@ static void call_ng_flags_flags(struct sdp_ng_flags *out, str *s, void *dummy) {
 		if (call_ng_flags_prefix(out, s, "codec-mask-", call_ng_flags_codec_ht, out->codec_mask))
 			return;
 #endif
-
+		out->transport_protocol = transport_protocol(s);
+		if(out->transport_protocol) {
+			ilog(LOG_INFO, "transport_protocol passed as flag: '" STR_FORMAT "'",
+							STR_FMT(s));
+			return;
+		}
 		ilog(LOG_WARN, "Unknown flag encountered: '" STR_FORMAT "'",
 				STR_FMT(s));
 	}
