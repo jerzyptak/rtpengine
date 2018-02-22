@@ -296,7 +296,8 @@ void ssrc_receiver_report(struct call_media *m, const struct ssrc_receiver_repor
 
 	const struct rtp_payload_type *rpt = rtp_payload_type(pt, m->codecs_recv);
 	if (!rpt) {
-		ilog(LOG_INFO, "Invalid RTP payload type %i, discarding RTCP RR", pt);
+		rpt = rtp_payload_type(pt, m->codecs_send);
+		ilog(LOG_INFO, "Invalid RTP payload type %i, discarding RTCP RR%s", pt, (rpt?" (but we have send pt for this)":""));
 		goto out_nl;
 	}
 	unsigned int jitter = rpt->clock_rate ? (rr->jitter * 1000 / rpt->clock_rate) : rr->jitter;
