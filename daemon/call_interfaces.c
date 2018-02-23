@@ -695,8 +695,10 @@ static void call_ng_process_flags(struct sdp_ng_flags *out, bencode_item_t *inpu
 	call_ng_flags_list(out, input, "rtcp-mux", call_ng_flags_rtcp_mux, NULL);
 	call_ng_flags_list(out, input, "SDES", ng_sdes_option, NULL);
 
-	bencode_get_alt(input, "transport-protocol", "transport protocol", &out->transport_protocol_str);
-	out->transport_protocol = transport_protocol(&out->transport_protocol_str);
+	if(!out->transport_protocol) {
+		bencode_get_alt(input, "transport-protocol", "transport protocol", &out->transport_protocol_str);
+		out->transport_protocol = transport_protocol(&out->transport_protocol_str);
+	}
 	bencode_get_alt(input, "media-address", "media address", &out->media_address);
 	if (bencode_get_alt(input, "address-family", "address family", &out->address_family_str))
 		out->address_family = get_socket_family_rfc(&out->address_family_str);
