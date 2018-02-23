@@ -281,13 +281,17 @@ void ssrc_receiver_report(struct call_media *m, const struct ssrc_receiver_repor
 	long long rtt = __calc_rtt(c, rr->ssrc, rr->lsr, rr->dlsr,
 			G_STRUCT_OFFSET(struct ssrc_entry_call, sender_reports), tv, &pt);
 
+	struct ssrc_entry_call *e = get_ssrc(rr->ssrc, c->ssrc_hash);
+	if (G_UNLIKELY(!e))
+		goto out_nl;
+
 	struct ssrc_entry_call *other_e = get_ssrc(rr->from, c->ssrc_hash);
 	if (G_UNLIKELY(!other_e))
 		goto out_nl;
 
 	// determine the clock rate for jitter values
 	if (pt < 0) {
-		pt = other_e->payload_type;
+		pt = e->payload_type;
 		if (pt < 0) {
 			ilog(LOG_DEBUG, "No payload type known for RTCP RR, discarding");
 			goto out_nl;
@@ -296,20 +300,7 @@ void ssrc_receiver_report(struct call_media *m, const struct ssrc_receiver_repor
 
 	const struct rtp_payload_type *rpt = rtp_payload_type(pt, m->codecs_send);
 	if (!rpt) {
-		GHashTableIter iter;
-		gpointer key, value;
-		g_hash_table_iter_init(&iter, m->codecs_send);
-		while (g_hash_table_iter_next(&iter, &key, &value)) {
-			rpt = (const struct rtp_payload_type *)value;
-			ilog(LOG_INFO, "ssrc_receiver_report: codecs_send: %i", rpt->payload_type);
-		}
-		g_hash_table_iter_init(&iter, m->codecs_recv);
-		while (g_hash_table_iter_next(&iter, &key, &value)) {
-			rpt = (const struct rtp_payload_type *)value;
-			ilog(LOG_INFO, "ssrc_receiver_report: codecs_recv: %i", rpt->payload_type);
-		}
-		rpt = rtp_payload_type(pt, m->codecs_recv);
-		ilog(LOG_INFO, "Invalid RTP payload type %i, discarding RTCP RR%s", pt, (rpt?" (but we have recv pt for this)":""));
+		ilog(LOG_INFO, "Invalid RTP payload type %i, discarding RTCP RR", pt);
 		goto out_nl;
 	}
 	unsigned int jitter = rpt->clock_rate ? (rr->jitter * 1000 / rpt->clock_rate) : rr->jitter;
@@ -329,34 +320,34 @@ void ssrc_receiver_report(struct call_media *m, const struct ssrc_receiver_repor
 	ilog(LOG_DEBUG, "Calculated MOS from RR for %x is %.1f", rr->from, (double) ssb->mos / 10.0);
 
 	// got a new stats block, add it to reporting ssrc
-	mutex_lock(&other_e->h.lock);
+	mutex_lock(&e->h.lock);
 
 	// discard stats block if last has been received less than a second ago
-	if (G_LIKELY(other_e->stats_blocks.length > 0)) {
-		struct ssrc_stats_block *last_ssb = g_queue_peek_tail(&other_e->stats_blocks);
+	if (G_LIKELY(e->stats_blocks.length > 0)) {
+		struct ssrc_stats_block *last_ssb = g_queue_peek_tail(&e->stats_blocks);
 		if (G_UNLIKELY(timeval_diff(tv, &last_ssb->reported) < 1000000)) {
 			free_stats_block(ssb);
 			goto out_ul_oe;
 		}
 	}
 
-	g_queue_push_tail(&other_e->stats_blocks, ssb);
+	g_queue_push_tail(&e->stats_blocks, ssb);
 
-	if (G_UNLIKELY(!other_e->lowest_mos) || ssb->mos < other_e->lowest_mos->mos)
-		other_e->lowest_mos = ssb;
-	if (G_UNLIKELY(!other_e->highest_mos) || ssb->mos > other_e->highest_mos->mos)
-		other_e->highest_mos = ssb;
+	if (G_UNLIKELY(!e->lowest_mos) || ssb->mos < e->lowest_mos->mos)
+		e->lowest_mos = ssb;
+	if (G_UNLIKELY(!e->highest_mos) || ssb->mos > e->highest_mos->mos)
+		e->highest_mos = ssb;
 
 	// running tally
-	other_e->average_mos.jitter += ssb->jitter;
-	other_e->average_mos.rtt += ssb->rtt;
-	other_e->average_mos.packetloss += ssb->packetloss;
-	other_e->average_mos.mos += ssb->mos;
+	e->average_mos.jitter += ssb->jitter;
+	e->average_mos.rtt += ssb->rtt;
+	e->average_mos.packetloss += ssb->packetloss;
+	e->average_mos.mos += ssb->mos;
 
 	goto out_ul_oe;
 
 out_ul_oe:
-	mutex_unlock(&other_e->h.lock);
+	mutex_unlock(&e->h.lock);
 	goto out_nl;
 out_nl:
 	;
