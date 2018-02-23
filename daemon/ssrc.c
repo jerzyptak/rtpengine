@@ -296,6 +296,18 @@ void ssrc_receiver_report(struct call_media *m, const struct ssrc_receiver_repor
 
 	const struct rtp_payload_type *rpt = rtp_payload_type(pt, m->codecs_send);
 	if (!rpt) {
+		GHashTableIter iter;
+		gpointer key, value;
+		g_hash_table_iter_init(&iter, m->codecs_send);
+		while (g_hash_table_iter_next(&iter, &key, &value)) {
+			rpt = (const struct rtp_payload_type *)value;
+			ilog(LOG_INFO, "ssrc_receiver_report: codecs_send: &i", rpt->payload_type);
+		}
+		g_hash_table_iter_init(&iter, m->codecs_recv);
+		while (g_hash_table_iter_next(&iter, &key, &value)) {
+			rpt = (const struct rtp_payload_type *)value;
+			ilog(LOG_INFO, "ssrc_receiver_report: codecs_recv: &i", rpt->payload_type);
+		}
 		rpt = rtp_payload_type(pt, m->codecs_recv);
 		ilog(LOG_INFO, "Invalid RTP payload type %i, discarding RTCP RR%s", pt, (rpt?" (but we have recv pt for this)":""));
 		goto out_nl;
