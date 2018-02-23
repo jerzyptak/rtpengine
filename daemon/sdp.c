@@ -203,6 +203,7 @@ struct sdp_attribute {
 		ATTR_IGNORE,
 		ATTR_RTPENGINE,
 		ATTR_PTIME,
+		ATTR_RTCP_FB,
 		ATTR_END_OF_CANDIDATES,
 	} attr;
 
@@ -825,6 +826,8 @@ static int parse_attribute(struct sdp_attribute *a) {
 		case 7:
 			if (!str_cmp(&a->name, "ice-pwd"))
 				a->attr = ATTR_ICE_PWD;
+			else if (!str_cmp(&a->name, "rtcp-fb"))
+				a->attr = ATTR_RTCP_FB;
 			break;
 		case 8:
 			switch (a->name.s[0]) {
@@ -1318,6 +1321,10 @@ int sdp_streams(const GQueue *sessions, GQueue *streams, struct sdp_ng_flags *fl
 				memcpy(sp->fingerprint.digest, attr->u.fingerprint.fingerprint,
 						sp->fingerprint.hash_func->num_bytes);
 			}
+
+			// be ignorant about the contents
+			if (attr_get_by_id(&media->attributes, ATTR_RTCP_FB))
+				SP_SET(sp, RTCP_FB);
 
 			__sdp_ice(sp, media);
 
