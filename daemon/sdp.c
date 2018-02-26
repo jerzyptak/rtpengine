@@ -1357,8 +1357,10 @@ int sdp_streams(const GQueue *sessions, GQueue *streams, struct sdp_ng_flags *fl
 			}
 
 			// be ignorant about the contents
-			if (attr_get_by_id(&media->attributes, ATTR_RTCP_FB))
+			if (attr_get_by_id(&media->attributes, ATTR_RTCP_FB)) {
+				ilog(LOG_DEBUG, "sdp_streams: setting RTCP_FB on a stream");
 				SP_SET(sp, RTCP_FB);
+			}
 
 			__sdp_ice(sp, media);
 

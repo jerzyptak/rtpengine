@@ -1135,6 +1135,7 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 
 	sh_pp = matrix[in->media->protocol->index];
 	if (MEDIA_ISSET(in->media, RTCP_FB)) {
+		ilog(LOG_DEBUG, "determine_handler: in media as RTCP_FB set");
 		if (in->media->protocol->index == PROTO_RTP_AVP)
 			sh_pp = matrix[PROTO_RTP_AVPF];
 		else if (in->media->protocol->index == PROTO_RTP_SAVP)
@@ -1146,6 +1147,7 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 	// special handling for RTP/AVP with advertised a=rtcp-fb
 	int out_proto = out->media->protocol->index;
 	if (MEDIA_ISSET(out->media, RTCP_FB)) {
+		ilog(LOG_DEBUG, "determine_handler: out media as RTCP_FB set");
 		if (out_proto == PROTO_RTP_AVP)
 			out_proto = PROTO_RTP_AVPF;
 		else if (out_proto == PROTO_RTP_SAVP)
