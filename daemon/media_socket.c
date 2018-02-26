@@ -1122,20 +1122,25 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 		goto err;
 
 	matrix = __sh_matrix;
-	if (MEDIA_ISSET(in->media, DTLS) || MEDIA_ISSET(out->media, DTLS))
+	ilog(LOG_DEBUG, "determine_handler: matrix set to __sh_matrix");
+	if (MEDIA_ISSET(in->media, DTLS) || MEDIA_ISSET(out->media, DTLS)) {
 		matrix = __sh_matrix_recrypt;
-	else if (in->call->recording)
+		ilog(LOG_DEBUG, "determine_handler: matrix set to __sh_matrix_recrypt");
+	} else if (in->call->recording) {
+		ilog(LOG_DEBUG, "determine_handler: matrix set to __sh_matrix_recrypt");
 		matrix = __sh_matrix_recrypt;
-	else if (in->media->protocol->srtp && out->media->protocol->srtp
+	} else if (in->media->protocol->srtp && out->media->protocol->srtp
 			&& in->selected_sfd && out->selected_sfd
 			&& (crypto_params_cmp(&in->crypto.params, &out->selected_sfd->crypto.params)
-				|| crypto_params_cmp(&out->crypto.params, &in->selected_sfd->crypto.params)))
+				|| crypto_params_cmp(&out->crypto.params, &in->selected_sfd->crypto.params))) {
+		ilog(LOG_DEBUG, "determine_handler: matrix set to __sh_matrix_recrypt");
 		matrix = __sh_matrix_recrypt;
+	}
 
 
 	sh_pp = matrix[in->media->protocol->index];
 	if (MEDIA_ISSET(in->media, RTCP_FB)) {
-		ilog(LOG_DEBUG, "determine_handler: in media as RTCP_FB set");
+		ilog(LOG_DEBUG, "determine_handler: in media has RTCP_FB set: %i", in->media->protocol->index);
 		if (in->media->protocol->index == PROTO_RTP_AVP)
 			sh_pp = matrix[PROTO_RTP_AVPF];
 		else if (in->media->protocol->index == PROTO_RTP_SAVP)
@@ -1147,7 +1152,7 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 	// special handling for RTP/AVP with advertised a=rtcp-fb
 	int out_proto = out->media->protocol->index;
 	if (MEDIA_ISSET(out->media, RTCP_FB)) {
-		ilog(LOG_DEBUG, "determine_handler: out media as RTCP_FB set");
+		ilog(LOG_DEBUG, "determine_handler: out media has RTCP_FB set: %i", out->media->protocol->index);
 		if (out_proto == PROTO_RTP_AVP)
 			out_proto = PROTO_RTP_AVPF;
 		else if (out_proto == PROTO_RTP_SAVP)
