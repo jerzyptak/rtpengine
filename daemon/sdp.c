@@ -274,39 +274,7 @@ static int parse_address(struct network_address *address) {
 			&address->address_type, &address->address);
 }
 
-INLINE int extract_rest(char **sp, char *end, str *out) {
-	out->s = *sp;
-
-	if (end == *sp)
-		return -1;
-
-	out->len = end - *sp;
-	*sp = end;
-	return 0;
-
-}
-
-INLINE int extract_token(char **sp, char *end, str *out) {
-	char *space;
-
-	out->s = *sp;
-	space = memchr(*sp, ' ', end - *sp);
-	if (space == *sp || end == *sp)
-		return -1;
-
-	if (!space) {
-		out->len = end - *sp;
-		*sp = end;
-	}
-	else {
-		out->len = space - *sp;
-		*sp = space + 1;
-	}
-	return 0;
-
-}
-#define EXTRACT_TOKEN(field) if (extract_token(&start, end, &output->field)) return -1
-#define EXTRACT_REST(field) if (extract_rest(&start, end, &output->field)) return -1
+#define EXTRACT_TOKEN(field) if (str_token_sep(&output->field, value_str, ' ')) return -1
 #define EXTRACT_NETWORK_ADDRESS_NP(field)			\
 		EXTRACT_TOKEN(field.network_type);		\
 		EXTRACT_TOKEN(field.address_type);		\
@@ -321,10 +289,10 @@ INLINE int extract_token(char **sp, char *end, str *out) {
 			output->field.parsed.u.ipv4.s_addr = 1;	\
 		} while (0)
 
-#define PARSE_DECL char *end, *start
-#define PARSE_INIT start = output->value.s; end = start + output->value.len
+#define PARSE_DECL str v_str, *value_str
+#define PARSE_INIT v_str = output->value; value_str = &v_str
 
-static int parse_origin(char *start, char *end, struct sdp_origin *output) {
+static int parse_origin(str *value_str, struct sdp_origin *output) {
 	if (output->parsed)
 		return -1;
 
@@ -337,7 +305,7 @@ static int parse_origin(char *start, char *end, struct sdp_origin *output) {
 	return 0;
 }
 
-static int parse_connection(char *start, char *end, struct sdp_connection *output) {
+static int parse_connection(str *value_str, struct sdp_connection *output) {
 	if (output->parsed)
 		return -1;
 
@@ -347,14 +315,14 @@ static int parse_connection(char *start, char *end, struct sdp_connection *outpu
 	return 0;
 }
 
-static int parse_media(char *start, char *end, struct sdp_media *output) {
+static int parse_media(str *value_str, struct sdp_media *output) {
 	char *ep;
-	str s, *sp;
+	str *sp;
 
 	EXTRACT_TOKEN(media_type);
 	EXTRACT_TOKEN(port);
 	EXTRACT_TOKEN(transport);
-	str_init_len(&output->formats, start, end - start);
+	output->formats = *value_str;
 
 	output->port_num = strtol(output->port.s, &ep, 10);
 	if (ep == output->port.s)
@@ -373,11 +341,11 @@ static int parse_media(char *start, char *end, struct sdp_media *output) {
 		output->port_count = 1;
 
 	/* to split the "formats" list into tokens, we abuse some vars */
-	start = output->formats.s;
-	end = start + output->formats.len;
-	while (!extract_token(&start, end, &s)) {
+	str formats = output->formats;
+	str format;
+	while (!str_token_sep(&format, &formats, ' ')) {
 		sp = g_slice_alloc(sizeof(*sp));
-		*sp = s;
+		*sp = format;
 		g_queue_push_tail(&output->format_list, sp);
 	}
 
@@ -550,7 +518,7 @@ static int parse_attribute_crypto(struct sdp_attribute *output) {
 			memcpy(c->mki + (c->mki_len - sizeof(u32)), &u32, sizeof(u32));
 	}
 
-	while (extract_token(&start, end, &s) == 0) {
+	while (str_token_sep(&s, value_str, ' ') == 0) {
 		if (!str_cmp(&s, "UNENCRYPTED_SRTCP"))
 			c->unencrypted_srtcp = 1;
 		else if (!str_cmp(&s, "UNENCRYPTED_SRTP"))
@@ -568,27 +536,24 @@ error:
 }
 
 static int parse_attribute_rtcp(struct sdp_attribute *output) {
-	char *ep, *start, *end;
-
 	if (!output->value.s)
 		goto err;
 	output->attr = ATTR_RTCP;
-	end = output->value.s + output->value.len;
-	output->u.rtcp.port_num = strtol(output->value.s, &ep, 10);
-	if (ep == output->value.s)
+
+	PARSE_DECL;
+	PARSE_INIT;
+
+	str portnum;
+	if (str_token_sep(&portnum, value_str, ' '))
 		goto err;
+	output->u.rtcp.port_num = str_to_i(&portnum, 0);
 	if (output->u.rtcp.port_num <= 0 || output->u.rtcp.port_num > 0xffff) {
 		output->u.rtcp.port_num = 0;
 		goto err;
 	}
-	if (*ep != ' ')
-		return 0;
-	ep++;
-	if (ep >= end)
-		return 0;
 
-	start = ep;
-	EXTRACT_NETWORK_ADDRESS(u.rtcp.address);
+	if (value_str->len)
+		EXTRACT_NETWORK_ADDRESS(u.rtcp.address);
 
 	return 0;
 
@@ -788,19 +753,17 @@ static int parse_attribute_rtpmap(struct sdp_attribute *output) {
 
 static int parse_attribute_fmtp(struct sdp_attribute *output) {
 	PARSE_DECL;
-	char *ep;
 	struct attribute_fmtp *a;
 
 	output->attr = ATTR_FMTP;
+	a = &output->u.fmtp;
 
 	PARSE_INIT;
 	EXTRACT_TOKEN(u.fmtp.payload_type_str);
-	EXTRACT_REST(u.fmtp.format_parms_str);
+	output->u.fmtp.format_parms_str = *value_str;
 
-	a = &output->u.fmtp;
-
-	a->payload_type = strtoul(a->payload_type_str.s, &ep, 10);
-	if (ep == a->payload_type_str.s)
+	a->payload_type = str_to_i(&a->payload_type_str, -1);
+	if (a->payload_type == -1)
 		return -1;
 
 	return 0;
@@ -958,6 +921,9 @@ int sdp_parse(str *body, GQueue *sessions) {
 		if (!session && b[0] != 'v')
 			goto error;
 
+		str value_str;
+		str_init_len(&value_str, value, line_end - value);
+
 		switch (b[0]) {
 			case 'v':
 				errstr = "Error in v= line";
@@ -981,7 +947,7 @@ int sdp_parse(str *body, GQueue *sessions) {
 				if (media)
 					goto error;
 				errstr = "Error parsing o= line";
-				if (parse_origin(value, line_end, &session->origin))
+				if (parse_origin(&value_str, &session->origin))
 					goto error;
 
 				break;
@@ -991,7 +957,7 @@ int sdp_parse(str *body, GQueue *sessions) {
 				media->session = session;
 				attrs_init(&media->attributes);
 				errstr = "Error parsing m= line";
-				if (parse_media(value, line_end, media))
+				if (parse_media(&value_str, media))
 					goto error;
 				g_queue_push_tail(&session->media_streams, media);
 				media->s.s = b;
@@ -1001,7 +967,7 @@ int sdp_parse(str *body, GQueue *sessions) {
 
 			case 'c':
 				errstr = "Error parsing c= line";
-				if (parse_connection(value, line_end,
+				if (parse_connection(&value_str,
 						media ? &media->connection : &session->connection))
 					goto error;
 
