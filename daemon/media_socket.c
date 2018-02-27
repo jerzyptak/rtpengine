@@ -1139,13 +1139,13 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 
 
 	sh_pp = matrix[in->media->protocol->index];
-	if (MEDIA_ISSET(in->media, RTCP_FB)) {
-		ilog(LOG_DEBUG, "determine_handler: in media has RTCP_FB set: %i", in->media->protocol->index);
-		if (in->media->protocol->index == PROTO_RTP_AVP)
-			sh_pp = matrix[PROTO_RTP_AVPF];
-		else if (in->media->protocol->index == PROTO_RTP_SAVP)
-			sh_pp = matrix[PROTO_RTP_SAVPF];
-	}
+//	if (MEDIA_ISSET(in->media, RTCP_FB)) {
+//		ilog(LOG_DEBUG, "determine_handler: in media has RTCP_FB set: %i", in->media->protocol->index);
+//		if (in->media->protocol->index == PROTO_RTP_AVP)
+//			sh_pp = matrix[PROTO_RTP_AVPF];
+//		else if (in->media->protocol->index == PROTO_RTP_SAVP)
+//			sh_pp = matrix[PROTO_RTP_SAVPF];
+//	}
 	if (!sh_pp)
 		goto err;
 
