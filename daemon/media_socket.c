@@ -1140,10 +1140,8 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 	// special handling for RTP/AVP with advertised a=rtcp-fb
 	int out_proto = out->media->protocol->index;
 	if (MEDIA_ISSET(out->media, RTCP_FB)) {
-		if (out_proto == PROTO_RTP_AVP)
-			out_proto = PROTO_RTP_AVPF;
-		else if (out_proto == PROTO_RTP_SAVP)
-			out_proto = PROTO_RTP_SAVPF;
+		if (!out->media->protocol->avpf && out->media->protocol->avpf_proto)
+			out_proto = out->media->protocol->avpf_proto;
 	}
 	sh = sh_pp[out_proto];
 	if (!sh)
