@@ -610,8 +610,6 @@ static void call_ng_flags_flags(struct sdp_ng_flags *out, str *s, void *dummy) {
 		out->no_rtcp_attr = 1;
 	else if (!str_cmp(s, "loop-protect"))
 		out->loop_protect = 1;
-	else if (!str_cmp(s, "no-rtcp-filtering"))
-		out->no_rtcp_filtering = 1;
 	else {
 		// handle values aliases from other dictionaries
 		if (call_ng_flags_prefix(out, s, "SDES-", ng_sdes_option, NULL))
@@ -629,12 +627,7 @@ static void call_ng_flags_flags(struct sdp_ng_flags *out, str *s, void *dummy) {
 		if (call_ng_flags_prefix(out, s, "codec-mask-", call_ng_flags_codec_ht, out->codec_mask))
 			return;
 #endif
-		out->transport_protocol = transport_protocol(s);
-		if(out->transport_protocol) {
-			ilog(LOG_INFO, "transport_protocol passed as flag: '" STR_FORMAT "'",
-							STR_FMT(s));
-			return;
-		}
+
 		ilog(LOG_WARN, "Unknown flag encountered: '" STR_FORMAT "'",
 				STR_FMT(s));
 	}
@@ -695,10 +688,8 @@ static void call_ng_process_flags(struct sdp_ng_flags *out, bencode_item_t *inpu
 	call_ng_flags_list(out, input, "rtcp-mux", call_ng_flags_rtcp_mux, NULL);
 	call_ng_flags_list(out, input, "SDES", ng_sdes_option, NULL);
 
-	if(!out->transport_protocol) {
-		bencode_get_alt(input, "transport-protocol", "transport protocol", &out->transport_protocol_str);
-		out->transport_protocol = transport_protocol(&out->transport_protocol_str);
-	}
+	bencode_get_alt(input, "transport-protocol", "transport protocol", &out->transport_protocol_str);
+	out->transport_protocol = transport_protocol(&out->transport_protocol_str);
 	bencode_get_alt(input, "media-address", "media address", &out->media_address);
 	if (bencode_get_alt(input, "address-family", "address family", &out->address_family_str))
 		out->address_family = get_socket_family_rfc(&out->address_family_str);
@@ -801,9 +792,6 @@ static const char *call_offer_answer_ng(bencode_item_t *input,
 		call->created_from = call_strdup(call, addr);
 		call->created_from_addr = sin->address;
 	}
-
-	call->no_rtcp_filtering = flags.no_rtcp_filtering?1:0;
-
 	/* At least the random ICE strings are contained within the call struct, so we
 	 * need to hold a ref until we're done sending the reply */
 	call_bencode_hold_ref(call, output);

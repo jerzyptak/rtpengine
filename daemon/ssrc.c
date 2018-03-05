@@ -281,10 +281,6 @@ void ssrc_receiver_report(struct call_media *m, const struct ssrc_receiver_repor
 	long long rtt = __calc_rtt(c, rr->ssrc, rr->lsr, rr->dlsr,
 			G_STRUCT_OFFSET(struct ssrc_entry_call, sender_reports), tv, &pt);
 
-	struct ssrc_entry_call *e = get_ssrc(rr->ssrc, c->ssrc_hash);
-	if (G_UNLIKELY(!e))
-		goto out_nl;
-
 	struct ssrc_entry_call *other_e = get_ssrc(rr->from, c->ssrc_hash);
 	if (G_UNLIKELY(!other_e))
 		goto out_nl;
@@ -320,34 +316,34 @@ void ssrc_receiver_report(struct call_media *m, const struct ssrc_receiver_repor
 	ilog(LOG_DEBUG, "Calculated MOS from RR for %x is %.1f", rr->from, (double) ssb->mos / 10.0);
 
 	// got a new stats block, add it to reporting ssrc
-	mutex_lock(&e->h.lock);
+	mutex_lock(&other_e->h.lock);
 
 	// discard stats block if last has been received less than a second ago
-	if (G_LIKELY(e->stats_blocks.length > 0)) {
-		struct ssrc_stats_block *last_ssb = g_queue_peek_tail(&e->stats_blocks);
+	if (G_LIKELY(other_e->stats_blocks.length > 0)) {
+		struct ssrc_stats_block *last_ssb = g_queue_peek_tail(&other_e->stats_blocks);
 		if (G_UNLIKELY(timeval_diff(tv, &last_ssb->reported) < 1000000)) {
 			free_stats_block(ssb);
 			goto out_ul_oe;
 		}
 	}
 
-	g_queue_push_tail(&e->stats_blocks, ssb);
+	g_queue_push_tail(&other_e->stats_blocks, ssb);
 
-	if (G_UNLIKELY(!e->lowest_mos) || ssb->mos < e->lowest_mos->mos)
-		e->lowest_mos = ssb;
-	if (G_UNLIKELY(!e->highest_mos) || ssb->mos > e->highest_mos->mos)
-		e->highest_mos = ssb;
+	if (G_UNLIKELY(!other_e->lowest_mos) || ssb->mos < other_e->lowest_mos->mos)
+		other_e->lowest_mos = ssb;
+	if (G_UNLIKELY(!other_e->highest_mos) || ssb->mos > other_e->highest_mos->mos)
+		other_e->highest_mos = ssb;
 
 	// running tally
-	e->average_mos.jitter += ssb->jitter;
-	e->average_mos.rtt += ssb->rtt;
-	e->average_mos.packetloss += ssb->packetloss;
-	e->average_mos.mos += ssb->mos;
+	other_e->average_mos.jitter += ssb->jitter;
+	other_e->average_mos.rtt += ssb->rtt;
+	other_e->average_mos.packetloss += ssb->packetloss;
+	other_e->average_mos.mos += ssb->mos;
 
 	goto out_ul_oe;
 
 out_ul_oe:
-	mutex_unlock(&e->h.lock);
+	mutex_unlock(&other_e->h.lock);
 	goto out_nl;
 out_nl:
 	;

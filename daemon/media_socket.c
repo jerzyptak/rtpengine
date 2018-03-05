@@ -880,7 +880,7 @@ static int call_avp2savp_rtp(str *s, struct packet_stream *stream, struct stream
 static int call_avp2savp_rtcp(str *s, struct packet_stream *stream, struct stream_fd *sfd, const endpoint_t *src,
 		const struct timeval *tv, struct ssrc_ctx *ssrc_ctx)
 {
-	return rtcp_avp2savp(s, &stream->crypto, ssrc_ctx, sfd->call->no_rtcp_filtering);
+	return rtcp_avp2savp(s, &stream->crypto, ssrc_ctx);
 }
 static int call_savp2avp_rtp(str *s, struct packet_stream *stream, struct stream_fd *sfd, const endpoint_t *src,
 		const struct timeval *tv, struct ssrc_ctx *ssrc_ctx)
@@ -890,7 +890,7 @@ static int call_savp2avp_rtp(str *s, struct packet_stream *stream, struct stream
 static int call_savp2avp_rtcp(str *s, struct packet_stream *stream, struct stream_fd *sfd, const endpoint_t *src,
 		const struct timeval *tv, struct ssrc_ctx *ssrc_ctx)
 {
-	return rtcp_savp2avp(s, &stream->selected_sfd->crypto, ssrc_ctx, sfd->call->no_rtcp_filtering);
+	return rtcp_savp2avp(s, &stream->selected_sfd->crypto, ssrc_ctx);
 }
 
 
@@ -1139,20 +1139,12 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 
 
 	sh_pp = matrix[in->media->protocol->index];
-//	if (MEDIA_ISSET(in->media, RTCP_FB)) {
-//		ilog(LOG_DEBUG, "determine_handler: in media has RTCP_FB set: %i", in->media->protocol->index);
-//		if (in->media->protocol->index == PROTO_RTP_AVP)
-//			sh_pp = matrix[PROTO_RTP_AVPF];
-//		else if (in->media->protocol->index == PROTO_RTP_SAVP)
-//			sh_pp = matrix[PROTO_RTP_SAVPF];
-//	}
 	if (!sh_pp)
 		goto err;
 
 	// special handling for RTP/AVP with advertised a=rtcp-fb
 	int out_proto = out->media->protocol->index;
 	if (MEDIA_ISSET(out->media, RTCP_FB)) {
-		ilog(LOG_DEBUG, "determine_handler: out media has RTCP_FB set: %i", out->media->protocol->index);
 		if (out_proto == PROTO_RTP_AVP)
 			out_proto = PROTO_RTP_AVPF;
 		else if (out_proto == PROTO_RTP_SAVP)
@@ -1341,7 +1333,7 @@ static void media_packet_rtp(struct packet_handler_ctx *phc)
 			g_atomic_pointer_set(&phc->mp.stream->rtp_stats_cache, rtp_s);
 		}
 	}
-	else if (phc->rtcp && !rtcp_payload(&phc->mp.rtcp, NULL, &phc->s, phc->mp.call->no_rtcp_filtering)) {
+	else if (phc->rtcp && !rtcp_payload(&phc->mp.rtcp, NULL, &phc->s)) {
 		if (G_LIKELY(phc->out_srtp != NULL))
 			__stream_ssrc(phc->in_srtp, phc->out_srtp, phc->mp.rtcp->ssrc, &phc->mp.ssrc_in,
 					&phc->mp.ssrc_out, phc->mp.call->ssrc_hash);
@@ -1390,7 +1382,7 @@ static int media_packet_encrypt(struct packet_handler_ctx *phc) {
 
 	for (GList *l = phc->mp.packets_out.head; l; l = l->next) {
 		struct codec_packet *p = l->data;
-		int encret = phc->encrypt_func(&p->s, phc->out_srtp, phc->mp.sfd, NULL, NULL, phc->mp.ssrc_out);
+		int encret = phc->encrypt_func(&p->s, phc->out_srtp, NULL, NULL, NULL, phc->mp.ssrc_out);
 		if (encret == 1)
 			phc->update = 1;
 		else if (encret != 0)
@@ -1539,7 +1531,7 @@ static int do_rtcp(struct packet_handler_ctx *phc) {
 	GQueue rtcp_list = G_QUEUE_INIT;
 	if (rtcp_parse(&rtcp_list, &phc->mp))
 		goto out;
-	if (phc->rtcp_filter && (!phc->mp.call->no_rtcp_filtering))
+	if (phc->rtcp_filter)
 		if (phc->rtcp_filter(&phc->mp, &rtcp_list))
 			goto out;
 
