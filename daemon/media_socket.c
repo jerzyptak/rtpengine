@@ -1145,10 +1145,8 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 	// special handling for RTP/AVP with advertised a=rtcp-fb
 	int out_proto = out->media->protocol->index;
 	if (MEDIA_ISSET(out->media, RTCP_FB)) {
-		if (out_proto == PROTO_RTP_AVP)
-			out_proto = PROTO_RTP_AVPF;
-		else if (out_proto == PROTO_RTP_SAVP)
-			out_proto = PROTO_RTP_SAVPF;
+		if (!out->media->protocol->avpf && out->media->protocol->avpf_proto)
+			out_proto = out->media->protocol->avpf_proto;
 	}
 	sh = sh_pp[out_proto];
 	if (!sh)
@@ -1315,7 +1313,7 @@ static void media_packet_rtp(struct packet_handler_ctx *phc)
 		// XXX redundant between SSRC handling and codec_handler stuff -> combine
 		phc->payload_type = (phc->mp.rtp->m_pt & 0x7f);
 		if (G_LIKELY(phc->mp.ssrc_in))
-			phc->mp.ssrc_in->parent->payload_type = phc->payload_type;
+			phc->mp.ssrc_in->payload_type = phc->payload_type;
 
 		// XXX yet another hash table per payload type -> combine
 		struct rtp_stats *rtp_s = g_atomic_pointer_get(&phc->mp.stream->rtp_stats_cache);
