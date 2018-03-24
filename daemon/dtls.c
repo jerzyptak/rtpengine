@@ -35,29 +35,12 @@
 
 #define CERT_EXPIRY_TIME (60*60*24*30) /* 30 days */
 
-INLINE struct stream_fd *dtls_primary(struct packet_stream *ps) {
-	if (!ps->sfds.length)
-		return NULL;
-	return ps->sfds.head->data;
-}
-// determine the sfd to hold our DTLS context if we don't know the sfd.
-// it's either the "selected_sfd" for regular multi-homed streams, or
-// the first sfd in the list in case ICE is in use
-struct stream_fd *dtls_sfd(struct packet_stream *ps) {
-	if (!ps)
-		return NULL;
-	if (PS_ISSET(ps, ICE))
-		return dtls_primary(ps);
-	return ps->selected_sfd;
-}
-// determine the DTLS context if we do have an sfd. can be sfd->dtls,
-// or in case ICE is in use, the first sfd's context.
 struct dtls_connection *dtls_ptr(struct stream_fd *sfd) {
 	if (!sfd)
 		return NULL;
 	struct packet_stream *ps = sfd->stream;
 	if (PS_ISSET(ps, ICE)) // ignore which sfd we were given
-		sfd = dtls_primary(ps);
+		return &ps->ice_dtls;
 	return &sfd->dtls;
 }
 
@@ -403,15 +386,15 @@ struct dtls_cert *dtls_cert() {
 
 static int verify_callback(int ok, X509_STORE_CTX *store) {
 	SSL *ssl;
-	struct stream_fd *sfd;
+	struct dtls_connection *d;
 	struct packet_stream *ps;
 	struct call_media *media;
 
 	ssl = X509_STORE_CTX_get_ex_data(store, SSL_get_ex_data_X509_STORE_CTX_idx());
-	sfd = SSL_get_app_data(ssl);
-	if (sfd->dtls.ssl != ssl)
+	d = SSL_get_app_data(ssl);
+	if (d->ssl != ssl)
 		return 0;
-	ps = sfd->stream;
+	ps = d->ptr;
 	if (!ps)
 		return 0;
 	if (PS_ISSET(ps, FINGERPRINT_VERIFIED))
@@ -499,14 +482,10 @@ static int try_connect(struct dtls_connection *d) {
 	return ret;
 }
 
-int dtls_connection_init(struct packet_stream *ps, int active, struct dtls_cert *cert) {
-	struct dtls_connection *d;
+int dtls_connection_init(struct dtls_connection *d, struct packet_stream *ps, int active,
+		struct dtls_cert *cert)
+{
 	unsigned long err;
-
-	struct stream_fd *sfd = dtls_sfd(ps);
-	if (!sfd)
-		return 0;
-	d = &sfd->dtls;
 
 	__DBG("dtls_connection_init(%i)", active);
 
@@ -515,6 +494,8 @@ int dtls_connection_init(struct packet_stream *ps, int active, struct dtls_cert 
 			goto done;
 		dtls_connection_cleanup(d);
 	}
+
+	d->ptr = ps;
 
 #if OPENSSL_VERSION_NUMBER >= 0x10002000L
 	d->ssl_ctx = SSL_CTX_new(active ? DTLS_client_method() : DTLS_server_method());
@@ -548,7 +529,7 @@ int dtls_connection_init(struct packet_stream *ps, int active, struct dtls_cert 
 	if (!d->r_bio || !d->w_bio)
 		goto error;
 
-	SSL_set_app_data(d->ssl, sfd); /* XXX obj reference here? */
+	SSL_set_app_data(d->ssl, d);
 	SSL_set_bio(d->ssl, d->r_bio, d->w_bio);
 	d->init = 1;
 	SSL_set_mode(d->ssl, SSL_MODE_ENABLE_PARTIAL_WRITE | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
@@ -563,7 +544,9 @@ int dtls_connection_init(struct packet_stream *ps, int active, struct dtls_cert 
 #if defined(SSL_OP_NO_QUERY_MTU)
 	SSL_CTX_set_options(d->ssl_ctx, SSL_OP_NO_QUERY_MTU);
 	SSL_set_mtu(d->ssl, 1500);
+#if defined(DTLS_set_link_mtu) || defined(DTLS_CTRL_SET_LINK_MTU) || OPENSSL_VERSION_NUMBER >= 0x10100000L
 	DTLS_set_link_mtu(d->ssl, 1500);
+#endif
 #endif
 
 	d->active = active ? -1 : 0;
@@ -650,21 +633,29 @@ found:
 
 	ilog(LOG_INFO, "DTLS-SRTP successfully negotiated");
 
+	if (d->active) {
+		/* we're the client */
+		crypto_init(&ps->crypto, &client);
+		if (ps->selected_sfd)
+			crypto_init(&ps->selected_sfd->crypto, &server);
+	}
+	else {
+		/* we're the server */
+		crypto_init(&ps->crypto, &server);
+		if (ps->selected_sfd)
+			crypto_init(&ps->selected_sfd->crypto, &client);
+	}
+	// it's possible that ps->selected_sfd is not from ps->sfds list (?)
 	for (GList *l = ps->sfds.head; l; l = l->next) {
 		struct stream_fd *sfd = l->data;
-		if (d->active) {
-			/* we're the client */
-			crypto_init(&ps->crypto, &client);
+		if (d->active) /* we're the client */
 			crypto_init(&sfd->crypto, &server);
-		}
-		else {
-			/* we're the server */
-			crypto_init(&ps->crypto, &server);
+		else /* we're the server */
 			crypto_init(&sfd->crypto, &client);
-		}
 	}
 
-	crypto_dump_keys(&ps->crypto, &ps->selected_sfd->crypto);
+	if (ps->selected_sfd)
+		crypto_dump_keys(&ps->crypto, &ps->selected_sfd->crypto);
 
 	return 0;
 
