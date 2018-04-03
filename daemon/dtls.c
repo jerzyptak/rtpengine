@@ -488,6 +488,7 @@ int dtls_connection_init(struct dtls_connection *d, struct packet_stream *ps, in
 	unsigned long err;
 
 	__DBG("dtls_connection_init(%i)", active);
+	ilog(LOG_INFO, "dtls_connection_init: %p", d);
 
 	if (d->init) {
 		if ((d->active && active) || (!d->active && !active))
@@ -523,7 +524,7 @@ int dtls_connection_init(struct dtls_connection *d, struct packet_stream *ps, in
 	d->ssl = SSL_new(d->ssl_ctx);
 	if (!d->ssl)
 		goto error;
-
+	ilog(LOG_INFO, "dtls_connection_init: %p: we have now d->ssl: %p", d, d->ssl);
 	d->r_bio = BIO_new(BIO_s_mem());
 	d->w_bio = BIO_new(BIO_s_mem());
 	if (!d->r_bio || !d->w_bio)
@@ -796,11 +797,14 @@ void dtls_shutdown(struct packet_stream *ps) {
 
 void dtls_connection_cleanup(struct dtls_connection *c) {
 	__DBG("dtls_connection_cleanup");
+	ilog(LOG_INFO, "dtls_connection_cleanup: %p", c);
 
 	if (c->ssl_ctx)
 		SSL_CTX_free(c->ssl_ctx);
-	if (c->ssl)
+	if (c->ssl) {
+		ilog(LOG_INFO, "dtls_connection_cleanup: %p: we have free d->ssl: %p", c, c->ssl);
 		SSL_free(c->ssl);
+	}
 	if (!c->init) {
 		if (c->r_bio)
 			BIO_free(c->r_bio);
