@@ -157,8 +157,11 @@ restart:
 	// keep entry filled for next SSRC
 	if (g_atomic_pointer_get(&ht->precreat) == NULL) {
 		struct ssrc_entry *nextent = ht->create_func(ht->uptr);
-		if (!g_atomic_pointer_compare_and_exchange(&ht->precreat, NULL, nextent))
+		ilog(LOG_INFO, "get_ssrc: precreated entry: %p", nextent);
+		if (!g_atomic_pointer_compare_and_exchange(&ht->precreat, NULL, nextent)) {
+			ilog(LOG_INFO, "get_ssrc: precreate somebody was faster, should free: %p", nextent);
 			obj_put(nextent);
+		}
 	}
 
 	return ent;
@@ -168,8 +171,10 @@ void free_ssrc_hash(struct ssrc_hash **ht) {
 		return;
 	g_hash_table_destroy((*ht)->ht);
 	g_queue_clear_full(&(*ht)->q, ssrc_entry_put);
-	if ((*ht)->precreat)
+	if ((*ht)->precreat) {
+		ilog(LOG_INFO, "free_ssrc_hash: should free: %p", (*ht)->precreat);
 		obj_put((struct ssrc_entry *) (*ht)->precreat);
+	}
 	g_slice_free1(sizeof(**ht), *ht);
 	*ht = NULL;
 }

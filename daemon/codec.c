@@ -380,6 +380,9 @@ next:
 
 		}
 	}
+	while (passthrough_handlers) {
+		passthrough_handlers = g_slist_delete_link(passthrough_handlers, passthrough_handlers);
+	}
 }
 
 
