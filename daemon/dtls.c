@@ -563,8 +563,10 @@ error:
 		if (d->w_bio)
 			BIO_free(d->w_bio);
 	}
-	if (d->ssl)
+	if (d->ssl) {
+		ilog(LOG_INFO, "dtls_connection_init: %p: we have free d->ssl: %p", d, d->ssl);
 		SSL_free(d->ssl);
+	}
 	if (d->ssl_ctx)
 		SSL_CTX_free(d->ssl_ctx);
 	ZERO(*d);
@@ -799,12 +801,12 @@ void dtls_connection_cleanup(struct dtls_connection *c) {
 	__DBG("dtls_connection_cleanup");
 	ilog(LOG_INFO, "dtls_connection_cleanup: %p", c);
 
-	if (c->ssl_ctx)
-		SSL_CTX_free(c->ssl_ctx);
 	if (c->ssl) {
 		ilog(LOG_INFO, "dtls_connection_cleanup: %p: we have free d->ssl: %p", c, c->ssl);
 		SSL_free(c->ssl);
 	}
+	if (c->ssl_ctx)
+		SSL_CTX_free(c->ssl_ctx);
 	if (!c->init) {
 		if (c->r_bio)
 			BIO_free(c->r_bio);
