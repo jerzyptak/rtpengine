@@ -1046,6 +1046,7 @@ static int __init_streams(struct call_media *A, struct call_media *B, const stru
 		}
 		bf_copy_same(&a->ps_flags, &A->media_flags, SHARED_FLAG_ICE);
 
+		ilog(LOG_INFO, "__init_streams: calling __init_stream for %p (RTP)", a);
 		if (__init_stream(a))
 			return -1;
 
@@ -1097,6 +1098,7 @@ static int __init_streams(struct call_media *A, struct call_media *B, const stru
 		}
 		bf_copy_same(&a->ps_flags, &A->media_flags, SHARED_FLAG_ICE);
 
+		ilog(LOG_INFO, "__init_streams: calling __init_stream for %p (RTCP)", a);
 		if (__init_stream(a))
 			return -1;
 

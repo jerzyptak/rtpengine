@@ -779,7 +779,7 @@ void dtls_shutdown(struct packet_stream *ps) {
 			continue;
 
 		if (d->connected && d->ssl) {
-			ilog(LOG_INFO, "dtls_shutdown: %p: we have SSL_shutdown d->ssl: %p", d, d->ssl);
+			ilog(LOG_INFO, "dtls_shutdown: %p: we have SSL_shutdown d->ssl: %p (state: %d (%d))", d, d->ssl, SSL_get_shutdown(d->ssl), SSL_SENT_SHUTDOWN);
 			SSL_shutdown(d->ssl);
 			dtls(sfd, NULL, &ps->endpoint);
 		}
@@ -803,7 +803,7 @@ void dtls_connection_cleanup(struct dtls_connection *c) {
 	ilog(LOG_INFO, "dtls_connection_cleanup: %p", c);
 
 	if (c->ssl) {
-		ilog(LOG_INFO, "dtls_connection_cleanup: %p: we have free d->ssl: %p", c, c->ssl);
+		ilog(LOG_INFO, "dtls_connection_cleanup: %p: we have free d->ssl: %p (state: %d (%d))", c, c->ssl, SSL_get_shutdown(c->ssl), SSL_SENT_SHUTDOWN);
 		SSL_free(c->ssl);
 	}
 	if (c->ssl_ctx)
