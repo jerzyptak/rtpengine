@@ -779,6 +779,7 @@ void dtls_shutdown(struct packet_stream *ps) {
 			continue;
 
 		if (d->connected && d->ssl) {
+			ilog(LOG_INFO, "dtls_shutdown: %p: we have SSL_shutdown d->ssl: %p", d, d->ssl);
 			SSL_shutdown(d->ssl);
 			dtls(sfd, NULL, &ps->endpoint);
 		}
