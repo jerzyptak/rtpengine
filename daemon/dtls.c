@@ -771,6 +771,14 @@ void dtls_shutdown(struct packet_stream *ps) {
 
 	__DBG("dtls_shutdown");
 
+
+	if (ps->ice_dtls.init) {
+		if (ps->ice_dtls.connected && ps->ice_dtls.ssl) {
+			ilog(LOG_INFO, "dtls_shutdown: %p: we have ice SSL_shutdown d->ssl: %p (state: %d (%d))", &ps->ice_dtls, ps->ice_dtls.ssl, SSL_get_shutdown(ps->ice_dtls.ssl), SSL_SENT_SHUTDOWN);
+			SSL_shutdown(ps->ice_dtls.ssl);
+		}
+		dtls_connection_cleanup(&ps->ice_dtls);
+	}
 	for (GList *l = ps->sfds.head; l; l = l->next) {
 		struct stream_fd *sfd = l->data;
 
