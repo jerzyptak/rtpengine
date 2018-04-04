@@ -52,6 +52,7 @@ static void __free_ssrc_entry_call(void *ep) {
 }
 static void ssrc_entry_put(void *ep) {
 	struct ssrc_entry_call *e = ep;
+	ilog(LOG_INFO, "ssrc_entry_put: should free: %p", &e->h);
 	obj_put(&e->h);
 }
 
