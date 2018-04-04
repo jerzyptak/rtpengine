@@ -57,7 +57,7 @@ static codec_handler_func handler_func_passthrough_ssrc;
 static codec_handler_func handler_func_transcode;
 
 static struct ssrc_entry *__ssrc_handler_new(void *p);
-static void __ssrc_handler_free(struct codec_ssrc_handler *p);
+static void __free_ssrc_handler(void *);
 
 static void __transcode_packet_free(struct transcode_packet *);
 
@@ -127,8 +127,7 @@ reset:
 	handler->dest_pt = *dest;
 	handler->func = handler_func_transcode;
 
-	handler->ssrc_hash = create_ssrc_hash_full(__ssrc_handler_new, (ssrc_free_func_t) __ssrc_handler_free,
-			handler);
+	handler->ssrc_hash = create_ssrc_hash_full(__ssrc_handler_new, handler);
 
 	ilog(LOG_DEBUG, "Created transcode context for " STR_FORMAT " -> " STR_FORMAT "",
 			STR_FMT(&source->encoding_with_params),
@@ -567,7 +566,7 @@ static struct ssrc_entry *__ssrc_handler_new(void *p) {
 			h->dest_pt.codec_def->rtpname, h->dest_pt.clock_rate,
 			h->dest_pt.channels);
 
-	struct codec_ssrc_handler *ch = g_slice_alloc0(sizeof(*ch));
+	struct codec_ssrc_handler *ch = obj_alloc0("codec_ssrc_handler", sizeof(*ch), __free_ssrc_handler);
 	ch->handler = h;
 	mutex_init(&ch->lock);
 	packet_sequencer_init(&ch->sequencer, (GDestroyNotify) __transcode_packet_free);
@@ -607,7 +606,7 @@ static struct ssrc_entry *__ssrc_handler_new(void *p) {
 	return &ch->h;
 
 err:
-	__ssrc_handler_free(ch);
+	obj_put(&ch->h);
 	return NULL;
 }
 static int __encoder_flush(encoder_t *enc, void *u1, void *u2) {
@@ -615,7 +614,9 @@ static int __encoder_flush(encoder_t *enc, void *u1, void *u2) {
 	*going = 1;
 	return 0;
 }
-static void __ssrc_handler_free(struct codec_ssrc_handler *ch) {
+static void __free_ssrc_handler(void *chp) {
+	struct codec_ssrc_handler *ch = chp;
+	ilog(LOG_DEBUG, "__free_ssrc_handler");
 	packet_sequencer_destroy(&ch->sequencer);
 	if (ch->decoder)
 		decoder_close(ch->decoder);
@@ -629,7 +630,6 @@ static void __ssrc_handler_free(struct codec_ssrc_handler *ch) {
 		encoder_free(ch->encoder);
 	}
 	g_string_free(ch->sample_buffer, TRUE);
-	g_slice_free1(sizeof(*ch), ch);
 }
 
 static int __packet_encoded(encoder_t *enc, void *u1, void *u2) {
@@ -645,7 +645,7 @@ static int __packet_encoded(encoder_t *enc, void *u1, void *u2) {
 	while (1) {
 		// figure out how big of a buffer we need
 		unsigned int payload_len = MAX(enc->avpkt.size, ch->bytes_per_packet);
-		unsigned int pkt_len = sizeof(struct rtp_header) + payload_len;
+		unsigned int pkt_len = sizeof(struct rtp_header) + payload_len + RTP_BUFFER_TAIL_ROOM;
 		// prepare our buffers
 		char *buf = malloc(pkt_len);
 		struct rtp_header *rh = (void *) buf;
@@ -767,6 +767,7 @@ static int handler_func_transcode(struct codec_handler *h, struct call_media *me
 	}
 
 	mutex_unlock(&ch->lock);
+	obj_put(&ch->h);
 
 	return 0;
 }

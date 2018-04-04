@@ -69,6 +69,10 @@ MODULE_LICENSE("GPL");
 #define DBG(x...) ((void)0)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
+#define xt_action_param xt_target_param
+#endif
+
 #if 0
 #define _s_lock(l, f) do {								\
 		printk(KERN_DEBUG "[PID %i %s:%i] acquiring lock %s\n",			\
@@ -3305,7 +3309,26 @@ static int send_proxy_packet4(struct sk_buff *skb, struct re_address *src, struc
 	ip_send_check(ih);
 	ip_local_out(par->net, skb->sk, skb);
 #else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+	ip_select_ident(par->net, skb, NULL);
+#elif (LINUX_VERSION_CODE == KERNEL_VERSION(3,10,0) && RHEL_MAJOR == 7) /* CentOS 7 */
+	/* nothing */
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,15,10) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,15,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,14,17)) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,13,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,12,27)) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,11,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,53)) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,103)) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,63))
 	ip_select_ident(skb, NULL);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,11,5) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,11,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,10,16)) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,4,66)) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,3,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,2,52)) \
+		|| (LINUX_VERSION_CODE < KERNEL_VERSION(3,1,0) && LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,100))
+	ip_select_ident(skb, skb_dst(skb), NULL);
+#else // 3.9.x, 3.8.x, 3.7.x, 3.6.x, 3.5.x, 3.3.x, 3.1.x, 2.6.x
+	ip_select_ident(ih, skb_dst(skb), NULL);
+#endif
 	ip_send_check(ih);
 	ip_local_out(skb);
 #endif
@@ -3829,9 +3852,7 @@ static unsigned int rtpengine46(struct sk_buff *skb, struct rtpengine_table *t, 
 	struct sk_buff *skb2;
 	int err;
 	int error_nf_action = XT_CONTINUE;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)
 	int rtp_pt_idx = -2;
-#endif
 	unsigned int datalen;
 	u_int32_t *u32;
 	struct rtp_parsed rtp;
@@ -4055,11 +4076,7 @@ skip2:
 
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
-static unsigned int rtpengine4(struct sk_buff *oskb, const struct xt_target_param *par) {
-#else
 static unsigned int rtpengine4(struct sk_buff *oskb, const struct xt_action_param *par) {
-#endif
 	const struct xt_rtpengine_info *pinfo = par->targinfo;
 	struct sk_buff *skb;
 	struct iphdr *ih;
@@ -4100,11 +4117,7 @@ skip:
 
 
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2,6,35)
-static unsigned int rtpengine6(struct sk_buff *oskb, const struct xt_target_param *par) {
-#else
 static unsigned int rtpengine6(struct sk_buff *oskb, const struct xt_action_param *par) {
-#endif
 	const struct xt_rtpengine_info *pinfo = par->targinfo;
 	struct sk_buff *skb;
 	struct ipv6hdr *ih;

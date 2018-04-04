@@ -1481,6 +1481,7 @@ static int json_build_ssrc(struct call *c, JsonReader *root_reader) {
 		se->output_ctx.payload_type = json_reader_get_ll(root_reader, "out_payload_type");
 
 		json_reader_end_element(root_reader);
+		obj_put(&se->h);
 	}
 	json_reader_end_member (root_reader);
 	return 0;
@@ -2156,14 +2157,13 @@ void redis_update_onekey(struct call *c, struct redis *r) {
 
 	return;
 err:
-
-	mutex_unlock(&r->lock);
-	rwlock_unlock_r(&c->master_lock);
 	if (r->ctx && r->ctx->err)
 		rlog(LOG_ERR, "Redis error: %s", r->ctx->errstr);
 	redisFree(r->ctx);
 	r->ctx = NULL;
 
+	mutex_unlock(&r->lock);
+	rwlock_unlock_r(&c->master_lock);
 }
 
 /* must be called lock-free */
@@ -2189,13 +2189,13 @@ void redis_delete(struct call *c, struct redis *r) {
 	return;
 
 err:
-	rwlock_unlock_r(&c->master_lock);
-	mutex_unlock(&r->lock);
-
 	if (r->ctx && r->ctx->err)
 		rlog(LOG_ERR, "Redis error: %s", r->ctx->errstr);
 	redisFree(r->ctx);
 	r->ctx = NULL;
+
+	rwlock_unlock_r(&c->master_lock);
+	mutex_unlock(&r->lock);
 }
 
 
