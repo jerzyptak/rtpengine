@@ -1122,20 +1122,15 @@ static void determine_handler(struct packet_stream *in, const struct packet_stre
 		goto err;
 
 	matrix = __sh_matrix;
-	ilog(LOG_DEBUG, "determine_handler: matrix set to __sh_matrix");
-	if (MEDIA_ISSET(in->media, DTLS) || MEDIA_ISSET(out->media, DTLS)) {
+	if (MEDIA_ISSET(in->media, DTLS) || MEDIA_ISSET(out->media, DTLS))
 		matrix = __sh_matrix_recrypt;
-		ilog(LOG_DEBUG, "determine_handler: matrix set to __sh_matrix_recrypt");
-	} else if (in->call->recording) {
-		ilog(LOG_DEBUG, "determine_handler: matrix set to __sh_matrix_recrypt");
+	else if (in->call->recording)
 		matrix = __sh_matrix_recrypt;
-	} else if (in->media->protocol->srtp && out->media->protocol->srtp
+	else if (in->media->protocol->srtp && out->media->protocol->srtp
 			&& in->selected_sfd && out->selected_sfd
 			&& (crypto_params_cmp(&in->crypto.params, &out->selected_sfd->crypto.params)
-				|| crypto_params_cmp(&out->crypto.params, &in->selected_sfd->crypto.params))) {
-		ilog(LOG_DEBUG, "determine_handler: matrix set to __sh_matrix_recrypt");
+				|| crypto_params_cmp(&out->crypto.params, &in->selected_sfd->crypto.params)))
 		matrix = __sh_matrix_recrypt;
-	}
 
 
 	sh_pp = matrix[in->media->protocol->index];
