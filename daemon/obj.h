@@ -14,11 +14,11 @@
 
 
 
-//#if 0 && defined(__DEBUG)
+#if 0 && defined(__DEBUG)
 #define OBJ_DEBUG 1
-//#else
-//#define OBJ_DEBUG 0
-//#endif
+#else
+#define OBJ_DEBUG 0
+#endif
 
 
 
